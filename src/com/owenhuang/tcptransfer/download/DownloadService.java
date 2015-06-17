@@ -29,13 +29,13 @@ public class DownloadService extends Service {
 	@Override
 	public void onCreate() {
 		super.onCreate();
-		TTLog.d(TransferDefine.DOWNLOAD_LOG_TAG, "[DownloadService]onCreate: Enter");
+		TTLog.d(TransferDefine.TRANSFER_LOG_TAG, "[DownloadService]onCreate: Enter");
 
 		mThreadPool = (ThreadPoolExecutor) Executors.newCachedThreadPool();
 		
 		//测试
 		DownloadTask downloadTask = new DownloadTask();
-		downloadTask.setHost("");
+		downloadTask.setHost(TransferDefine.SOCKET_SERVER_HOST);
 		downloadTask.setPort(TransferDefine.SOCKET_SERVER_PORT);
 		DownloadRunnable downloadRunnable = new DownloadRunnable(downloadTask);
 		mThreadPool.submit(downloadRunnable);

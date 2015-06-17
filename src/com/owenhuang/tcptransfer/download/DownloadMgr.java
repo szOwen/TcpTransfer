@@ -9,6 +9,15 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.IBinder;
 
+/**
+ * TCP下载管理器
+ * 需：
+ * 1、在AndroidManifest.xml中添加com.owenhuang.tcptransfer.download.DownloadService服务
+ * 2、在AndroidManifest.xml中添加android.permission.INTERNET、android.permission.ACCESS_NETWORK_STATE、android.permission.ACCESS_WIFI_STATE权限
+ * 3、如果需要输出日志到本地则在添加android.permission.WRITE_EXTERNAL_STORAGE权限
+ * @author XlOwen
+ *
+ */
 public class DownloadMgr {
 	
 	private Context mContext = null;
@@ -66,7 +75,7 @@ public class DownloadMgr {
 									
 				}
 			}, Context.BIND_AUTO_CREATE);
-			TTLog.d(TransferDefine.DOWNLOAD_LOG_TAG, "[DownloadMgr]bindService: bindResult = " + bindResult);
+			TTLog.d(TransferDefine.TRANSFER_LOG_TAG, "[DownloadMgr]bindService: bindResult = " + bindResult);
 		}
 	}
 }

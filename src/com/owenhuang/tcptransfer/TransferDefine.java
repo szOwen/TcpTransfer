@@ -10,13 +10,29 @@ package com.owenhuang.tcptransfer;
  */
 public class TransferDefine {
 	
-	public static final String DOWNLOAD_LOG_TAG = "DownloadLogTag";
-	public static final String UPLOAD_LOG_TAG = "UploadLogTag";
+	public static final String TRANSFER_LOG_TAG = "TransferLogTag";
 	
+	/**
+	 * 服务器的IP
+	 */
+	public static final String SOCKET_SERVER_HOST = "localhost";	
 	/**
 	 * 服务器的监听端口号
 	 */
-	public static final int SOCKET_SERVER_PORT = 53467;
+	public static final int SOCKET_SERVER_PORT = 4926;
+	
+	/**
+	 * 协议：请求文件
+	 */
+	public static final short PROTOCOL_TYPE_REQUEST_FILE = 0;
+	public static final short PROTOCOL_TYPE_TRANSFER_FILE = 1;
+	
+	/**
+	 * 协议错误码
+	 */
+	public static final short PROTOCOL_ERROR_CODE_OK = 0;
+	public static final short PROTOCOL_ERROR_CODE_FILE = 1;
+	public static final short PROTOCOL_ERROR_CODE_FILE_FINISH = 2;
 	
 	/**
 	 * Socket连接失败

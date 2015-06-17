@@ -3,6 +3,8 @@ package com.owenhuang.tcptransfer.upload;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 
 import com.owenhuang.tcptransfer.TTLog;
 import com.owenhuang.tcptransfer.TransferDefine;
@@ -13,6 +15,8 @@ import android.os.Binder;
 import android.os.IBinder;
 
 public class UploadService extends Service {
+	
+	private ThreadPoolExecutor mThreadPool;
 	
 	/**
 	 * 自定义的Binder类
@@ -42,22 +46,26 @@ public class UploadService extends Service {
 		
 		@Override
 		public void run() {
-			TTLog.d(TransferDefine.UPLOAD_LOG_TAG, "[UploadService]AcceptRunnable:run: Enter");
+			TTLog.d(TransferDefine.TRANSFER_LOG_TAG, "[UploadService]AcceptRunnable:run: Enter");
 			
 			try {
 				mServerSocket = new ServerSocket(TransferDefine.SOCKET_SERVER_PORT);
+				
+				while(RUNNING_FLAG_RUNNING == mRunningFlag) {
+					try {
+						TTLog.d(TransferDefine.TRANSFER_LOG_TAG, "[UploadService]AcceptRunnable:run: mServerSocket.accept start");
+						Socket clientSocket = mServerSocket.accept();
+						TTLog.d(TransferDefine.TRANSFER_LOG_TAG, "[UploadService]AcceptRunnable:run: mServerSocket.accept return");
+						
+						//测试
+						UploadRunnable uploadRunnable = new UploadRunnable(clientSocket);
+						mThreadPool.submit(uploadRunnable);
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+				}
 			} catch (IOException e) {
 				e.printStackTrace();
-			}
-			
-			while(RUNNING_FLAG_RUNNING == mRunningFlag) {
-				try {
-					TTLog.d(TransferDefine.UPLOAD_LOG_TAG, "[UploadService]AcceptRunnable:run: mServerSocket.accept start");
-					Socket clientSocket = mServerSocket.accept();
-					TTLog.d(TransferDefine.UPLOAD_LOG_TAG, "[UploadService]AcceptRunnable:run: mServerSocket.accept return");
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
 			}
 		}		
 	}
@@ -65,9 +73,12 @@ public class UploadService extends Service {
 	@Override
 	public void onCreate() {
 		super.onCreate();
+		TTLog.d(TransferDefine.TRANSFER_LOG_TAG, "[UploadService]onCreate: Enter");
+		
+		mThreadPool = (ThreadPoolExecutor) Executors.newCachedThreadPool();
 
 		//开启监听线程
-		new Thread(new AcceptRunnable());
+		(new Thread(new AcceptRunnable())).start();
 	}
 	
 	@Override
