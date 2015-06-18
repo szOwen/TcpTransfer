@@ -21,6 +21,7 @@ public class DataStreamUtil {
         int secondByte = 0x000000FF & byteBuffer[offset];
         return (firstByte << 8 | secondByte);
 	}
+	
 	/**
 	 * 写Int到Byte数组中
 	 * @param value
@@ -44,6 +45,7 @@ public class DataStreamUtil {
         int fourthByte = 0x000000FF & byteBuffer[offset];
         return (firstByte << 24 | secondByte << 16 | thirdByte << 8 | fourthByte);
 	}
+	
 	/**
 	 * 写Long到Byte数组中
 	 * @param value
@@ -72,6 +74,7 @@ public class DataStreamUtil {
 		
 		return value;
 	}
+	
 	/**
 	 * 写String到Byte数组中
 	 * @param value

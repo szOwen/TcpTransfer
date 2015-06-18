@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
+import java.util.Arrays;
 
 import com.owenhuang.tcptransfer.DataStreamUtil;
 import com.owenhuang.tcptransfer.StopException;
@@ -25,10 +26,11 @@ public class UploadRunnable implements Runnable {
 	 *
 	 */
 	private class UploadFileRunnable implements Runnable {
+		private static final int FILE_BLOCK_SIZE = 8192;
 		private String mFilePath = null;
-		private int mFileDataOffset = 0;
+		private long mFileDataOffset = 0;
 		
-		public UploadFileRunnable(String filePath, int fileDataOffset) {
+		public UploadFileRunnable(String filePath, long fileDataOffset) {
 			mFilePath = filePath;
 			mFileDataOffset = fileDataOffset;
 		}
@@ -36,41 +38,56 @@ public class UploadRunnable implements Runnable {
 		@Override
 		public void run() {
 			try {
-				FileInputStream fileInputStream = new FileInputStream(mFilePath);
-				int sendCount = 0;
+				int offset = 0;
+				int fileNameLen = DataStreamUtil.writeString2ByteArray(mFilePath, null, offset);
+				byte[] transferInfoData = new byte[2 + 8 + 4 + 4 + fileNameLen + 8];	//协议类型+数据长度+错误码+文件名长度+文件名+文件偏移
+				//协议类型
+				offset = DataStreamUtil.writeShort2ByteArray(TransferDefine.PROTOCOL_TYPE_TRANSFER_FILE, transferInfoData, offset);
+				//数据长度
+				int dataLen = 8 + fileNameLen + 8;
+				File uploadFile = new File(mFilePath);
+				dataLen += uploadFile.length();
+				TTLog.d(TransferDefine.TRANSFER_LOG_TAG, "[UploadRunnable]UploadFileRunnable:run: uploadFile.length() = " + uploadFile.length());	
+				offset = DataStreamUtil.writeLong2ByteArray(dataLen, transferInfoData, offset);
+				//错误码
+				offset = DataStreamUtil.writeInt2ByteArray(TransferDefine.PROTOCOL_ERROR_CODE_FILE, transferInfoData, offset);
+				//文件名长度
+				offset = DataStreamUtil.writeInt2ByteArray(fileNameLen, transferInfoData, offset);
+				//文件名
+				offset = DataStreamUtil.writeString2ByteArray(mFilePath, transferInfoData, offset);
+				//文件偏移
+				offset = DataStreamUtil.writeLong2ByteArray(mFileDataOffset, transferInfoData, offset);
+				//发送
+				send(transferInfoData);				
+				
+				//传输文件数据
+				FileInputStream fileInputStream = new FileInputStream(uploadFile);
 				int readCount = 0;
-				byte[] fileData = new byte[1024];
-				while (-1 != (readCount = fileInputStream.read(fileData, mFileDataOffset, 1024))) {
-					TTLog.d(TransferDefine.TRANSFER_LOG_TAG, "[UploadRunnable]UploadFileRunnable:run: readCount = " + readCount);
-					int offset = 0;
-					byte[] sendData = new byte[2 + 4 + 4 + readCount];
-					//文件头
-					offset = DataStreamUtil.writeShort2ByteArray(TransferDefine.PROTOCOL_TYPE_TRANSFER_FILE, sendData, offset);
-					offset = DataStreamUtil.writeInt2ByteArray(4 + readCount, sendData, offset);
-					//返回码
-					//offset = DataStreamUtil.writeInt2ByteArray(TransferDefine.PROTOCOL_ERROR_CODE_FILE, sendData, offset);
-					offset = DataStreamUtil.writeInt2ByteArray(++sendCount, sendData, offset);
-					//数据
-					System.arraycopy(fileData, 0, sendData, offset, readCount);
+				byte[] fileData = new byte[FILE_BLOCK_SIZE];
+				fileInputStream.skip(mFileDataOffset);
+				while (-1 != (readCount = fileInputStream.read(fileData, 0, FILE_BLOCK_SIZE))) {
+					TTLog.d(TransferDefine.TRANSFER_LOG_TAG, "[UploadRunnable]UploadFileRunnable:run: readCount = " + readCount);					
 					//发送
-					send(sendData);
+					send(fileData);
 				}
 				TTLog.d(TransferDefine.TRANSFER_LOG_TAG, "[UploadRunnable]UploadFileRunnable:run: readCount = " + readCount);
 				
 				//发送完成标识
-				int offset = 0;
-				byte[] sendData = new byte[2 + 4 + 4];
+				offset = 0;
+				byte[] finishSendData = new byte[2 + 4 + 4];
 				//文件头
-				offset = DataStreamUtil.writeShort2ByteArray(TransferDefine.PROTOCOL_TYPE_TRANSFER_FILE, sendData, offset);
-				offset = DataStreamUtil.writeInt2ByteArray(4, sendData, offset);
+				offset = DataStreamUtil.writeShort2ByteArray(TransferDefine.PROTOCOL_TYPE_TRANSFER_FILE, finishSendData, offset);
+				offset = DataStreamUtil.writeInt2ByteArray(4, finishSendData, offset);
 				//返回码
-				offset = DataStreamUtil.writeInt2ByteArray(TransferDefine.PROTOCOL_ERROR_CODE_FILE_FINISH, sendData, offset);
+				offset = DataStreamUtil.writeInt2ByteArray(TransferDefine.PROTOCOL_ERROR_CODE_FILE_FINISH, finishSendData, offset);
 				//发送
-				send(sendData);
+				send(finishSendData);
 			} catch (StopException e) {
 				TTLog.e(TransferDefine.TRANSFER_LOG_TAG, "[UploadRunnable]UploadFileRunnable:run: catch StopException, " + e.getMessage());
 			} catch (IOException e) {
 				TTLog.e(TransferDefine.TRANSFER_LOG_TAG, "[UploadRunnable]UploadFileRunnable:run: catch IOException, " + e.getMessage());
+			} catch (Exception e) {
+				TTLog.e(TransferDefine.TRANSFER_LOG_TAG, "[UploadRunnable]UploadFileRunnable:run: catch Exception, " + e.getMessage());
 			}
 		}		
 	}
@@ -87,7 +104,7 @@ public class UploadRunnable implements Runnable {
 
 			//收取数据包
 			int readCount = 0;
-			byte[] buffer = new byte[265];
+			byte[] buffer = new byte[256];
 			while (-1 != (readCount = mInputStream.read(buffer))) {
 				TTLog.d(TransferDefine.TRANSFER_LOG_TAG, "[UploadRunnable]run: readCount = " + readCount);
 				processRecvData(buffer);
@@ -110,8 +127,8 @@ public class UploadRunnable implements Runnable {
 		//解释请求头
 		int protocolType = DataStreamUtil.readShortFromByteArray(data, offset);
 		offset += 2;
-		int dataLength = DataStreamUtil.readIntFromByteArray(data, offset);
-		offset += 4;
+		long dataLength = DataStreamUtil.readLongFromByteArray(data, offset);
+		offset += 8;
 		TTLog.d(TransferDefine.TRANSFER_LOG_TAG, "[UploadRunnable]processRecvData: protocolType = " + protocolType + ", dataLength = " + dataLength);
 		
 		switch (protocolType) {
@@ -132,7 +149,7 @@ public class UploadRunnable implements Runnable {
 			if (null == mUploadFileRunnable) {
 				mUploadFileRunnable = new UploadFileRunnable(filePath, fileDataOffset);
 				(new Thread(mUploadFileRunnable)).start();
-			}
+			}	
 		}
 	}
 	
@@ -148,6 +165,7 @@ public class UploadRunnable implements Runnable {
 	 * 关闭连接
 	 */
 	private void close() {
+		TTLog.d(TransferDefine.TRANSFER_LOG_TAG, "[UploadRunnable]close: Enter");
 		if(isConnect()){
 			try {
 				mClientSocket.close();
@@ -172,7 +190,7 @@ public class UploadRunnable implements Runnable {
 		
 		try {
 			mOutputStream.write(data);
-			mOutputStream.flush();
+			//mOutputStream.flush();
 		} catch (IOException e) {
 			throw new StopException(TransferDefine.STATUS_SOCKET_SEND_FAILED, e.toString(), e);
 		}
